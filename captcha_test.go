@@ -1,4 +1,5 @@
 package captcha
+
 import "testing"
 
 func TestKeySerialization(t *testing.T) {

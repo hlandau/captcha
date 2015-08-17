@@ -1,4 +1,5 @@
 package captcha
+
 import "bytes"
 import "container/heap"
 import "code.google.com/p/draw2d/draw2d"
@@ -19,7 +20,7 @@ import "regexp"
 import "sort"
 import "strings"
 import "time"
-import "expvar"
+import "github.com/hlandau/degoutils/metric"
 
 const imageMIME = "image/gif"
 
@@ -27,14 +28,14 @@ var prng salsaPRNG
 var prngRand *rand.Rand
 var spRepl = strings.NewReplacer(" ", "")
 
-var exInstancesCreated = expvar.NewInt("captcha.instancesCreated")
-var exVerifySuccesses  = expvar.NewInt("captcha.verifySuccesses")
-var exVerifyFailures   = expvar.NewInt("captcha.verifyFailures")
-var exDecodeSuccesses  = expvar.NewInt("captcha.decodeSuccesses")
-var exDecodeFailures   = expvar.NewInt("captcha.decodeFailures")
-var exImagesGenerated  = expvar.NewInt("captcha.imagesGenerated")
-var exNewInstancesServed = expvar.NewInt("captcha.newInstancesServed")
-var exSpentHeapInstanceCount = expvar.NewInt("captcha.spentHeapInstanceCount")
+var exInstancesCreated = metric.NewCounter("captcha.instancesCreated")
+var exVerifySuccesses = metric.NewCounter("captcha.verifySuccesses")
+var exVerifyFailures = metric.NewCounter("captcha.verifyFailures")
+var exDecodeSuccesses = metric.NewCounter("captcha.decodeSuccesses")
+var exDecodeFailures = metric.NewCounter("captcha.decodeFailures")
+var exImagesGenerated = metric.NewCounter("captcha.imagesGenerated")
+var exNewInstancesServed = metric.NewCounter("captcha.newInstancesServed")
+var exSpentHeapInstanceCount = metric.NewCounter("captcha.spentHeapInstanceCount")
 
 func init() {
 	draw2d.SetFontFolder(".")
@@ -76,8 +77,8 @@ func (cfg *Config) NewInstance() Instance {
 	cfg.init()
 
 	i := Instance{
-		Code: cfg.genCode(),
-		Seed: uint64(prngRand.Int63()),
+		Code:   cfg.genCode(),
+		Seed:   uint64(prngRand.Int63()),
 		Expiry: time.Now().Add(cfg.Expiry).Round(time.Second),
 	}
 
@@ -90,25 +91,25 @@ func (cfg *Config) NewInstance() Instance {
 
 func (cfg *Config) genCode() string {
 	switch cfg.CodeType {
-		case MarkovCode:
-			return rstrMarkov(cfg.CodeLength, prngRand)
-		case RandomCode:
-			return rstr(cfg.CodeLength, prngRand)
-		default:
-			panic("unknown code type")
+	case MarkovCode:
+		return rstrMarkov(cfg.CodeLength, prngRand)
+	case RandomCode:
+		return rstr(cfg.CodeLength, prngRand)
+	default:
+		panic("unknown code type")
 	}
 }
 
 type spentKey struct {
-	key string
+	key    string
 	expiry time.Time
 }
 
 type spentKeyHeap []spentKey
 
-func (h spentKeyHeap) Len() int { return len(h) }
+func (h spentKeyHeap) Len() int           { return len(h) }
 func (h spentKeyHeap) Less(i, j int) bool { return h[i].expiry.Before(h[j].expiry) }
-func (h spentKeyHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h spentKeyHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 func (h *spentKeyHeap) Push(x interface{}) {
 	*h = append(*h, x.(spentKey))
 }
@@ -116,11 +117,12 @@ func (h *spentKeyHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	x := old[n-1]
-	*h = old[0:n-1]
+	*h = old[0 : n-1]
 	return x
 }
 
 type CodeType int
+
 const (
 	MarkovCode CodeType = 0 // generate pronouncable psuedo-words (easier)
 	RandomCode          = 1 // generate completely random letters (harder)
@@ -137,7 +139,7 @@ type Config struct {
 	CodeType CodeType
 
 	// Controls generated images.
-	Width int
+	Width  int
 	Height int
 
 	// Key for encrypting instances. If set to zero, one will be generated
@@ -152,7 +154,7 @@ type Config struct {
 	//
 	// If you specify these you must do the pruning yourself.
 	RegisterSpentInstance func(instance *Instance) error
-	CheckSpentInstance func(instance *Instance) bool
+	CheckSpentInstance    func(instance *Instance) bool
 
 	// Do not allow the HTTP handler to serve new instance keys
 	// at $PREFIX/new.
@@ -175,13 +177,13 @@ func (cfg *Config) init() {
 		cfg.CodeLength = 8
 	}
 	if cfg.Expiry == 0 {
-		cfg.Expiry = 1*time.Hour
+		cfg.Expiry = 1 * time.Hour
 	}
 	if cfg.Width == 0 {
 		cfg.Width = 200
 	}
 	if cfg.Height == 0 {
-		cfg.Height = cfg.Width/2
+		cfg.Height = cfg.Width / 2
 	}
 
 	cfg.spentKeyHeap = spentKeyHeap{}
@@ -230,7 +232,7 @@ func (cfg *Config) Key(instance *Instance) string {
 }
 
 func repadBase64(k string) string {
-	for len(k) % 4 != 0 {
+	for len(k)%4 != 0 {
 		k += "="
 	}
 	return k
@@ -258,11 +260,11 @@ func (cfg *Config) decodeInstance(key string) (*Instance, error) {
 
 	inst := &Instance{}
 	copy(inst.Nonce[:], b[0:24])
-	inst.Seed   = binary.BigEndian.Uint64(a[0:8])
+	inst.Seed = binary.BigEndian.Uint64(a[0:8])
 	inst.Expiry = time.Unix(int64(binary.BigEndian.Uint64(a[8:16])), 0)
-	codeLen    := a[16]
-	inst.Code   = string(a[17:17+codeLen])
-	inst.key    = key
+	codeLen := a[16]
+	inst.Code = string(a[17 : 17+codeLen])
+	inst.key = key
 
 	return inst, nil
 }
@@ -360,7 +362,7 @@ func (cfg *Config) cleanHeap() {
 	}
 
 	newLen := len(cfg.spentKeyHeap)
-	exSpentHeapInstanceCount.Add(int64(newLen-oldLen))
+	exSpentHeapInstanceCount.Add(int64(newLen - oldLen))
 }
 
 func (cfg *Config) registerSpentInstance(instance *Instance) error {
@@ -371,18 +373,18 @@ func (cfg *Config) registerSpentInstance(instance *Instance) error {
 	oldLen := len(cfg.spentKeyHeap)
 
 	heap.Push(&cfg.spentKeyHeap, spentKey{
-	  key: cfg.Key(instance),
+		key:    cfg.Key(instance),
 		expiry: instance.Expiry,
 	})
 
 	newLen := len(cfg.spentKeyHeap)
-	exSpentHeapInstanceCount.Add(int64(newLen-oldLen))
+	exSpentHeapInstanceCount.Add(int64(newLen - oldLen))
 
 	return nil
 }
 
 type handler struct {
-	cfg *Config
+	cfg    *Config
 	prefix string
 }
 
@@ -390,14 +392,14 @@ type handler struct {
 // must be mapped using http.Handle using exactly the prefix specified.
 // The prefix should end in a slash (e.g. "/captcha/").
 func (cfg *Config) Handler(prefix string) http.Handler {
-	return &handler{ cfg: cfg, prefix: prefix, }
+	return &handler{cfg: cfg, prefix: prefix}
 }
 
 // http://.../some/handler/ASLSADASLDAJLDWLKLKASDLSJLASKDASKLDSL
 // http://.../some/handler/ASLSADASLDAJLDWLKLKASDLSJLASKDASKLDSL.gif
 // http://.../some/handler/extra/ASLSADASLDAJLDWLKLKASDLSJLASKDASKLDSL
 func (h *handler) stripPrefix(url *url.URL) (string, error) {
-	if p := strings.TrimPrefix(url.Path,h.prefix); len(p) < len(url.Path) {
+	if p := strings.TrimPrefix(url.Path, h.prefix); len(p) < len(url.Path) {
 		return p, nil
 	}
 
@@ -419,7 +421,7 @@ func (h *handler) determineKeyFromURL(path string) (string, error) {
 }
 
 var errWrongPrefix = fmt.Errorf("wrong prefix")
-var errInvalidURL  = fmt.Errorf("invalid URL")
+var errInvalidURL = fmt.Errorf("invalid URL")
 
 func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	path, err := h.stripPrefix(req.URL)
@@ -571,7 +573,7 @@ func rstrMarkov(n int, r *rand.Rand) string {
 		s += string(c + 65)
 		next := r.Float64()
 		for j := 0; j < 26; j++ {
-			if next < markovTransitionMatrix[c*26 + j] {
+			if next < markovTransitionMatrix[c*26+j] {
 				c = j
 				break
 			}
@@ -582,14 +584,14 @@ func rstrMarkov(n int, r *rand.Rand) string {
 
 var fonts = []draw2d.FontData{
 	draw2d.FontData{
-		Name: "DejaVuSans",
+		Name:   "DejaVuSans",
 		Family: draw2d.FontFamilySans,
-		Style: draw2d.FontStyleNormal,
+		Style:  draw2d.FontStyleNormal,
 	},
 	draw2d.FontData{
-		Name: "Comic",
+		Name:   "Comic",
 		Family: draw2d.FontFamilySans,
-		Style: draw2d.FontStyleNormal,
+		Style:  draw2d.FontStyleNormal,
 	},
 }
 
@@ -619,16 +621,16 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 	w := cfg.Width
 	h := cfg.Height
 
-	pX   := 120+rand.Intn(30)
-	pY   := 40+rand.Intn(30)
+	pX := 120 + rand.Intn(30)
+	pY := 40 + rand.Intn(30)
 
 	r := image.NewRGBA(image.Rect(0, 0, w, h))
 
 	// Set up the random noise background.
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			c := 255-uint8(rand.Intn(192))
-			r.SetRGBA(x,y,color.RGBA{c,c,c,255})
+			c := 255 - uint8(rand.Intn(192))
+			r.SetRGBA(x, y, color.RGBA{c, c, c, 255})
 			//r.SetRGBA(x,y,color.RGBA{255-uint8(rand.Intn(192)),255-uint8(rand.Intn(192)),255-uint8(rand.Intn(192)),255})
 		}
 	}
@@ -644,35 +646,35 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 
 	// Draw some random thick lines across the image from top to bottom.
 	for i := 0; i < 4; i++ {
-		ctx.MoveTo(float64(rand.Intn(w)),-10)
-		ctx.LineTo(float64(w)-float64(rand.Intn(w)),float64(h+10))
+		ctx.MoveTo(float64(rand.Intn(w)), -10)
+		ctx.LineTo(float64(w)-float64(rand.Intn(w)), float64(h+10))
 		ctx.SetLineWidth(10)
 		ctx.SetLineCap(draw2d.ButtCap)
-		ctx.SetStrokeColor(color.RGBA{0,0,0,uint8(100+rand.Intn(30))})
+		ctx.SetStrokeColor(color.RGBA{0, 0, 0, uint8(100 + rand.Intn(30))})
 		ctx.Stroke()
 	}
-	
+
 	ctx.SetFontData(fdata)
-	ctx.SetFontSize(float64(18+rand.Intn(4)))
+	ctx.SetFontSize(float64(18 + rand.Intn(4)))
 	ctx.SetLineWidth(1)
-	ctx.SetFillColor(color.RGBA{0,0,0,uint8(180+rand.Intn(40))})
+	ctx.SetFillColor(color.RGBA{0, 0, 0, uint8(180 + rand.Intn(40))})
 
 	ctx.Save()
 
 	// Add the actual code string with random rotation and scale.
-	ctx.Rotate(pRot*3.1419)
-	ctx.Scale(0.4,1.8*(rand.Float64()+0.5))
+	ctx.Rotate(pRot * 3.1419)
+	ctx.Scale(0.4, 1.8*(rand.Float64()+0.5))
 	//ctx.SetFillColor(color.RGBA{255,255,255,255})
-	ctx.FillStringAt(pStr,float64(pX),float64(pY))
+	ctx.FillStringAt(pStr, float64(pX), float64(pY))
 
 	// Add some additional random strings with lower opacity
 	// to add background noise.
 	for i := 0; i < 4; i++ {
 		ctx.Restore()
-		ctx.Rotate(0.04*rand.Float64()*3.1419)
-		ctx.Scale(1.0,1.0)
-		ctx.SetFillColor(color.RGBA{0,0,0,uint8(70+rand.Intn(10))})
-		ctx.FillStringAt(rstr(8,rand), float64(rand.Intn(w/2)), float64(rand.Intn(h)))
+		ctx.Rotate(0.04 * rand.Float64() * 3.1419)
+		ctx.Scale(1.0, 1.0)
+		ctx.SetFillColor(color.RGBA{0, 0, 0, uint8(70 + rand.Intn(10))})
+		ctx.FillStringAt(rstr(8, rand), float64(rand.Intn(w/2)), float64(rand.Intn(h)))
 	}
 
 	// Create a new image for XORing additional shapes onto the image.
@@ -682,14 +684,14 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 	// The second image starts all black.
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			r2.SetRGBA(x,y,color.RGBA{0,0,0,255})
+			r2.SetRGBA(x, y, color.RGBA{0, 0, 0, 255})
 		}
 	}
 
 	// Place several white filled circles on the second image.
 	for i := 0; i < 4; i++ {
-		ctx2.ArcTo(float64(rand.Intn(w)),float64(rand.Intn(h)),18,18,0,math.Pi*2)
-		ctx2.SetFillColor(color.RGBA{255,255,255,255})
+		ctx2.ArcTo(float64(rand.Intn(w)), float64(rand.Intn(h)), 18, 18, 0, math.Pi*2)
+		ctx2.SetFillColor(color.RGBA{255, 255, 255, 255})
 		ctx2.Fill()
 	}
 
@@ -699,20 +701,20 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 	// image appear to invert the colours of the pixels underneath.
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			c := r.At(x,y).(color.RGBA)
-			c2 := r2.At(x,y).(color.RGBA)
-			c3 := color.RGBA{c.R,c.G,c.B,255}
+			c := r.At(x, y).(color.RGBA)
+			c2 := r2.At(x, y).(color.RGBA)
+			c3 := color.RGBA{c.R, c.G, c.B, 255}
 			if c2.R > 10 {
-				c3.R = 255-c3.R // ^c3.R
+				c3.R = 255 - c3.R // ^c3.R
 			}
 			if c2.G > 10 {
-				c3.G = 255-c3.G //^c3.G
+				c3.G = 255 - c3.G //^c3.G
 			}
 			if c2.B > 10 {
-				c3.B = 255-c3.B //^c3.B
+				c3.B = 255 - c3.B //^c3.B
 			}
 			c3.A = 255
-			r2.SetRGBA(x,y,c3)
+			r2.SetRGBA(x, y, c3)
 		}
 	}
 

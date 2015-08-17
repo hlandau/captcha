@@ -1,4 +1,5 @@
 package captcha
+
 import "encoding/binary"
 import "golang.org/x/crypto/salsa20/salsa"
 import "sync/atomic"
@@ -9,14 +10,14 @@ type salsaPRNG struct {
 	k       [32]byte
 	counter uint64
 
-	mutex    sync.Mutex
-	buf      []byte
-	buforig  []byte
+	mutex   sync.Mutex
+	buf     []byte
+	buforig []byte
 }
 
 func (p *salsaPRNG) Read(b []byte) (int, error) {
 	var ctr [16]byte
-	blocks := (uint64(len(b))+63)/64
+	blocks := (uint64(len(b)) + 63) / 64
 	cv := atomic.AddUint64(&p.counter, blocks) - blocks
 	binary.BigEndian.PutUint64(ctr[8:16], cv)
 	salsa.XORKeyStream(b, b, &ctr, &p.k)
