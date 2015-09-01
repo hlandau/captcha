@@ -2,7 +2,8 @@ package captcha
 
 import "bytes"
 import "container/heap"
-import "code.google.com/p/draw2d/draw2d"
+import "github.com/llgcode/draw2d"
+import "github.com/llgcode/draw2d/draw2dimg"
 import "encoding/binary"
 import "encoding/base64"
 import "fmt"
@@ -593,6 +594,16 @@ var fonts = []draw2d.FontData{
 		Family: draw2d.FontFamilySans,
 		Style:  draw2d.FontStyleNormal,
 	},
+	draw2d.FontData{
+		Name:   "Airstrike",
+		Family: draw2d.FontFamilySans,
+		Style:  draw2d.FontStyleNormal,
+	},
+	draw2d.FontData{
+		Name:   "Tamworth",
+		Family: draw2d.FontFamilySans,
+		Style:  draw2d.FontStyleNormal,
+	},
 }
 
 func spaceCode(s string, r *rand.Rand) string {
@@ -621,8 +632,12 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 	w := cfg.Width
 	h := cfg.Height
 
-	pX := 120 + rand.Intn(30)
-	pY := 40 + rand.Intn(30)
+	crand := func(l, h int) int {
+		return l + rand.Intn(h-l)
+	}
+
+	pX := crand(w/4, 3*w/4)
+	pY := crand(h/4, 3*h/4)
 
 	r := image.NewRGBA(image.Rect(0, 0, w, h))
 
@@ -642,28 +657,28 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 		panic("no font")
 	}
 
-	ctx := draw2d.NewGraphicContext(r)
+	ctx := draw2dimg.NewGraphicContext(r)
 
 	// Draw some random thick lines across the image from top to bottom.
 	for i := 0; i < 4; i++ {
 		ctx.MoveTo(float64(rand.Intn(w)), -10)
 		ctx.LineTo(float64(w)-float64(rand.Intn(w)), float64(h+10))
-		ctx.SetLineWidth(10)
+		ctx.SetLineWidth(float64(crand(10-3, 10+3)))
 		ctx.SetLineCap(draw2d.ButtCap)
 		ctx.SetStrokeColor(color.RGBA{0, 0, 0, uint8(100 + rand.Intn(30))})
 		ctx.Stroke()
 	}
 
 	ctx.SetFontData(fdata)
-	ctx.SetFontSize(float64(18 + rand.Intn(4)))
+	ctx.SetFontSize(float64(20 + rand.Intn(4)))
 	ctx.SetLineWidth(1)
-	ctx.SetFillColor(color.RGBA{0, 0, 0, uint8(180 + rand.Intn(40))})
+	ctx.SetFillColor(color.RGBA{0, 0, 0, uint8(250 + rand.Intn(1))})
 
 	ctx.Save()
 
 	// Add the actual code string with random rotation and scale.
-	ctx.Rotate(pRot * 3.1419)
-	ctx.Scale(0.4, 1.8*(rand.Float64()+0.5))
+	ctx.Rotate(pRot * 3.1419 * 0)
+	ctx.Scale(0.4, 1) //1.8*(rand.Float64()+0.5))
 	//ctx.SetFillColor(color.RGBA{255,255,255,255})
 	ctx.FillStringAt(pStr, float64(pX), float64(pY))
 
@@ -679,7 +694,7 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 
 	// Create a new image for XORing additional shapes onto the image.
 	r2 := image.NewRGBA(image.Rect(0, 0, w, h))
-	ctx2 := draw2d.NewGraphicContext(r2)
+	ctx2 := draw2dimg.NewGraphicContext(r2)
 
 	// The second image starts all black.
 	for y := 0; y < h; y++ {
@@ -690,7 +705,9 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 
 	// Place several white filled circles on the second image.
 	for i := 0; i < 4; i++ {
-		ctx2.ArcTo(float64(rand.Intn(w)), float64(rand.Intn(h)), 18, 18, 0, math.Pi*2)
+		dim := crand(18-2, 18+2)
+		ctx2.ArcTo(float64(crand(pX-30, pX+30)), float64(crand(pY-30, pY+30)),
+			float64(dim), float64(dim), 0, math.Pi*2)
 		ctx2.SetFillColor(color.RGBA{255, 255, 255, 255})
 		ctx2.Fill()
 	}
