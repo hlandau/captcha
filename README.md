@@ -65,3 +65,11 @@ if cfg.Verify(inst2, userInput) {
 }
 ```
 
+Licence
+-------
+
+Image warping code was taken from [dchest/captcha](https://github.com/dchest/captcha).
+
+    © 2011-2014 Dmitry Chestnykh <dmitry@codingrobots.com>    MIT License
+    © 2015 Hugo Landau <hlandau@devever.net>                  MIT License
+
