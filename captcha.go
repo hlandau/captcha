@@ -638,12 +638,13 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 
 	pX := crand(w/4, 3*w/4)
 	pY := crand(h/4, 3*h/4)
+	margin := 10
 
-	r := image.NewRGBA(image.Rect(0, 0, w, h))
+	r := image.NewRGBA(image.Rect(-margin, -margin, w+margin, h+margin))
 
 	// Set up the random noise background.
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := -margin; y < h+margin; y++ {
+		for x := -margin; x < w+margin; x++ {
 			c := 255 - uint8(rand.Intn(192))
 			r.SetRGBA(x, y, color.RGBA{c, c, c, 255})
 			//r.SetRGBA(x,y,color.RGBA{255-uint8(rand.Intn(192)),255-uint8(rand.Intn(192)),255-uint8(rand.Intn(192)),255})
@@ -693,7 +694,7 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 	}
 
 	// Create a new image for XORing additional shapes onto the image.
-	r2 := image.NewRGBA(image.Rect(0, 0, w, h))
+	r2 := image.NewRGBA(image.Rect(-margin, -margin, w+margin, h+margin))
 	ctx2 := draw2dimg.NewGraphicContext(r2)
 
 	// The second image starts all black.
@@ -716,8 +717,8 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 	// of the first image when the second image's corresponding pixel
 	// is non-black. The resulting effect is that several circles on the
 	// image appear to invert the colours of the pixels underneath.
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := -margin; y < h+margin; y++ {
+		for x := -margin; x < w+margin; x++ {
 			c := r.At(x, y).(color.RGBA)
 			c2 := r2.At(x, y).(color.RGBA)
 			c3 := color.RGBA{c.R, c.G, c.B, 255}
@@ -735,9 +736,23 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 		}
 	}
 
+	// distort from dchest/captcha
+	amplitude := float64(crand(5, 10))
+	period := float64(crand(100, 200))
+
+	r3 := image.NewRGBA(image.Rect(0, 0, w, h))
+	dx := 2.0 * math.Pi / period
+	for x := 0; x < w; x++ {
+		for y := 0; y < h; y++ {
+			xo := amplitude * math.Sin(float64(y)*dx)
+			yo := amplitude * math.Cos(float64(x)*dx)
+			r3.SetRGBA(x, y, r2.RGBAAt(x+int(xo), y+int(yo)))
+		}
+	}
+
 	exImagesGenerated.Add(1)
 
-	return r2, nil
+	return r3, nil
 }
 
 func encodeImage(img image.Image, w io.Writer) error {
