@@ -1,6 +1,8 @@
 Work in progress
 ================
 
+[![GoDoc](https://godoc.org/github.com/hlandau/captcha?status.svg)](https://godoc.org/github.com/hlandau/captcha)
+
 A stateless CAPTCHA library for Go. Currently supports only image CAPTCHAs.
 
 ![Image](https://github.com/hlandau/captcha/raw/master/examples/DELOWANE.gif)
