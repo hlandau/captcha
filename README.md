@@ -44,6 +44,8 @@ cfg := captcha.Config{
   // You must therefore set it if you have multiple servers.
 }
 
+cfg.SetFontPath(".../fonts/")
+
 http.Handle("/captcha/", cfg.Handler("/captcha/"))
 
 inst := cfg.NewInstance()
