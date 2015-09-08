@@ -22,6 +22,9 @@ import "sort"
 import "strings"
 import "time"
 import "github.com/hlandau/degoutils/metric"
+import "io/ioutil"
+import "code.google.com/p/freetype-go/freetype/truetype"
+import "path/filepath"
 
 const imageMIME = "image/gif"
 
@@ -39,7 +42,7 @@ var exNewInstancesServed = metric.NewCounter("captcha.newInstancesServed")
 var exSpentHeapInstanceCount = metric.NewCounter("captcha.spentHeapInstanceCount")
 
 func init() {
-	draw2d.SetFontFolder(".")
+	//draw2d.SetFontFolder(".")
 
 	err := prng.SeedSystem()
 	if err != nil {
@@ -122,6 +125,7 @@ func (h *spentKeyHeap) Pop() interface{} {
 	return x
 }
 
+// Specifies the random string generation strategy used.
 type CodeType int
 
 const (
@@ -164,7 +168,53 @@ type Config struct {
 	// Used to store a sorted list of spent nonces.
 	spentKeyHeap spentKeyHeap
 
+	fonts []draw2d.FontData
+
 	inited bool
+}
+
+var fontCounter = 0
+
+func (cfg *Config) addFont(fn string) error {
+	buf, err := ioutil.ReadFile(fn)
+	if err != nil {
+		return err
+	}
+
+	font, err := truetype.Parse(buf)
+	if err != nil {
+		return err
+	}
+
+	fontCounter++
+	f := draw2d.FontData{
+		Name:   fmt.Sprintf("captchafont%d", fontCounter),
+		Family: draw2d.FontFamilySans,
+		Style:  draw2d.FontStyleNormal,
+	}
+
+	draw2d.RegisterFont(f, font)
+
+	cfg.fonts = append(cfg.fonts, f)
+	return nil
+}
+
+// Set the path to the font directory. You must call this before generating images.
+func (cfg *Config) SetFontPath(path string) error {
+	matches, err := filepath.Glob(filepath.Join(path, "*.ttf"))
+	if err != nil {
+		return err
+	}
+
+	cfg.fonts = nil
+	for _, m := range matches {
+		err := cfg.addFont(m)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (cfg *Config) init() {
@@ -270,6 +320,9 @@ func (cfg *Config) decodeInstance(key string) (*Instance, error) {
 	return inst, nil
 }
 
+// Given a key-string, tries to decode it into an instance.
+//
+// Returns an error if the key is invalid.
 func (cfg *Config) DecodeInstance(key string) (*Instance, error) {
 	inst, err := cfg.decodeInstance(key)
 
@@ -306,6 +359,8 @@ func (cfg *Config) verify(instance *Instance, input string) bool {
 	return true
 }
 
+// Verify whether an input is valid for an instance. Returns true iff the input
+// is considered correct.
 func (cfg *Config) Verify(instance *Instance, input string) bool {
 	ok := cfg.verify(instance, input)
 
@@ -389,9 +444,10 @@ type handler struct {
 	prefix string
 }
 
-// Returns an http.Handler for the given URL prefix. The Handler
-// must be mapped using http.Handle using exactly the prefix specified.
-// The prefix should end in a slash (e.g. "/captcha/").
+// Returns an http.Handler for the given URL prefix.
+//
+// The Handler must be mapped using http.Handle using exactly the prefix
+// specified.  The prefix should end in a slash (e.g. "/captcha/").
 func (cfg *Config) Handler(prefix string) http.Handler {
 	return &handler{cfg: cfg, prefix: prefix}
 }
@@ -583,29 +639,6 @@ func rstrMarkov(n int, r *rand.Rand) string {
 	return s
 }
 
-var fonts = []draw2d.FontData{
-	draw2d.FontData{
-		Name:   "DejaVuSans",
-		Family: draw2d.FontFamilySans,
-		Style:  draw2d.FontStyleNormal,
-	},
-	draw2d.FontData{
-		Name:   "Comic",
-		Family: draw2d.FontFamilySans,
-		Style:  draw2d.FontStyleNormal,
-	},
-	draw2d.FontData{
-		Name:   "Airstrike",
-		Family: draw2d.FontFamilySans,
-		Style:  draw2d.FontStyleNormal,
-	},
-	draw2d.FontData{
-		Name:   "Tamworth",
-		Family: draw2d.FontFamilySans,
-		Style:  draw2d.FontStyleNormal,
-	},
-}
-
 func spaceCode(s string, r *rand.Rand) string {
 	ss := ""
 	for i := range s {
@@ -620,6 +653,10 @@ func spaceCode(s string, r *rand.Rand) string {
 // Returns an image deterministically generated from the Generator parameters
 // and the Instance.
 func (cfg *Config) Image(instance *Instance) (image.Image, error) {
+	if len(cfg.fonts) == 0 {
+		panic("must set font directory first")
+	}
+
 	pNoiseSeed := instance.Seed //int64(52)
 
 	rsrc := rand.NewSource(int64(pNoiseSeed))
@@ -652,7 +689,7 @@ func (cfg *Config) Image(instance *Instance) (image.Image, error) {
 	}
 
 	// Choose a random font.
-	fdata := fonts[rand.Intn(len(fonts))]
+	fdata := cfg.fonts[rand.Intn(len(cfg.fonts))]
 	f := draw2d.GetFont(fdata)
 	if f == nil {
 		panic("no font")
@@ -761,6 +798,10 @@ func encodeImage(img image.Image, w io.Writer) error {
 	})
 }
 
+// You can use this to convert an image to a base64 data: URL string.
+//
+// You can use this if serving images from an HTTP handler is inconvenient for
+// your application.
 func ImageToDataURL(img image.Image) (string, error) {
 	b := bytes.Buffer{}
 
