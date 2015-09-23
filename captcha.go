@@ -21,7 +21,7 @@ import "regexp"
 import "sort"
 import "strings"
 import "time"
-import "github.com/hlandau/degoutils/metric"
+import "gopkg.in/hlandau/easymetric.v1/cexp"
 import "io/ioutil"
 import "code.google.com/p/freetype-go/freetype/truetype"
 import "path/filepath"
@@ -32,14 +32,14 @@ var prng salsaPRNG
 var prngRand *rand.Rand
 var spRepl = strings.NewReplacer(" ", "")
 
-var exInstancesCreated = metric.NewCounter("captcha.instancesCreated")
-var exVerifySuccesses = metric.NewCounter("captcha.verifySuccesses")
-var exVerifyFailures = metric.NewCounter("captcha.verifyFailures")
-var exDecodeSuccesses = metric.NewCounter("captcha.decodeSuccesses")
-var exDecodeFailures = metric.NewCounter("captcha.decodeFailures")
-var exImagesGenerated = metric.NewCounter("captcha.imagesGenerated")
-var exNewInstancesServed = metric.NewCounter("captcha.newInstancesServed")
-var exSpentHeapInstanceCount = metric.NewCounter("captcha.spentHeapInstanceCount")
+var exInstancesCreated = cexp.NewCounter("captcha.instancesCreated")
+var exVerifySuccesses = cexp.NewCounter("captcha.verifySuccesses")
+var exVerifyFailures = cexp.NewCounter("captcha.verifyFailures")
+var exDecodeSuccesses = cexp.NewCounter("captcha.decodeSuccesses")
+var exDecodeFailures = cexp.NewCounter("captcha.decodeFailures")
+var exImagesGenerated = cexp.NewCounter("captcha.imagesGenerated")
+var exNewInstancesServed = cexp.NewCounter("captcha.newInstancesServed")
+var exSpentHeapInstanceCount = cexp.NewCounter("captcha.spentHeapInstanceCount")
 
 func init() {
 	//draw2d.SetFontFolder(".")
