@@ -1,5 +1,4 @@
-Work in progress
-================
+# Go CAPTCHA Library
 
 [![GoDoc](https://godoc.org/github.com/hlandau/captcha?status.svg)](https://godoc.org/github.com/hlandau/captcha)
 
