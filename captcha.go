@@ -23,7 +23,7 @@ import "strings"
 import "time"
 import "gopkg.in/hlandau/easymetric.v1/cexp"
 import "io/ioutil"
-import "code.google.com/p/freetype-go/freetype/truetype"
+import "github.com/golang/freetype/truetype"
 import "path/filepath"
 
 const imageMIME = "image/gif"
