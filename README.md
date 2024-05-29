@@ -1,6 +1,6 @@
 # Go CAPTCHA Library
 
-[![godocs.io](https://godocs.io/github.com/hlandau/captcha?status.svg)](https://godocs.io/github.com/hlandau/captcha) [![No modules](https://www.devever.net/~hl/f/no-modules2.svg) 100% modules-free.](https://www.devever.net/~hl/gomod)
+[![godocs.io](https://godocs.io/github.com/hlandau/captcha?status.svg)](https://godocs.io/github.com/hlandau/captcha)
 
 A stateless CAPTCHA library for Go. Currently supports only image CAPTCHAs.
 
